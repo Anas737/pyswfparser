@@ -62,6 +62,7 @@ class BitsReader:
     def read_uint_from_bits(self, size=1):
         bits = self._read_bits(size)
 
+        # NOTE: byteorder = 'big' to read it as is
         return int.from_bytes(
             bits_to_bytes(bits),
             byteorder='big',
@@ -76,6 +77,7 @@ class BitsReader:
         sign, *bits = bits
         bits = bitarray(bits)
 
+        # NOTE: byteorder = 'big' to read it as is
         return int.from_bytes(
             bits_to_bytes(bits, str(sign)),
             byteorder='big',
