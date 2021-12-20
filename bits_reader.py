@@ -25,8 +25,16 @@ class BitsReader:
         return self._buffer[self.position:]
 
     @property
+    def bytes_buffers(self):
+        return self.buffer.tobytes()
+
+    @property
     def position(self):
         return self._position
+
+    @property
+    def byte_position(self):
+        return math.ceil(self.position / 8)
 
     @property
     def bits_length(self):
@@ -49,28 +57,67 @@ class BitsReader:
         self.seek_bits(position * __BYTE_BIT_SIZE__)
 
     def read_uint8(self):
-        return self._read_uint_from_bytes()
-    
+        return self.read_uint_from_bytes()
+
+    def read_uint_from_bits(self, size=1):
+        bits = self._read_bits(size)
+
+        return int.from_bytes(
+            bits_to_bytes(bits),
+            byteorder='big',
+            signed=False,
+        )
+
+    def read_int_from_bits(self, size=2):
+        if size <= 1:
+            return self.read_uint_from_bits(size)
+
+        bits = self._read_bits(size)
+        sign, *bits = bits
+        bits = bitarray(bits)
+
+        return int.from_bytes(
+            bits_to_bytes(bits, str(sign)),
+            byteorder='big',
+            signed=True,
+        )
+
+    def read_uint_from_bytes(self, size=1):
+        bits = self._read_bits_from_bytes(size)
+        return int.from_bytes(
+            bits_to_bytes(bits),
+            byteorder=self._byteorder,
+            signed=False,
+        )
+
+    def read_int_from_bytes(self, size=1):
+        bits = self._read_bits_from_bytes(size)
+        return int.from_bytes(
+            bits_to_bytes(bits),
+            byteorder=self._byteorder,
+            signed=True,
+        )
+
     def read_int8(self):
-        return self._read_int_from_bytes()
+        return self.read_int_from_bytes()
     
     def read_uint16(self):
-        return self._read_uint_from_bytes(size=2)
+        return self.read_uint_from_bytes(size=2)
 
     def read_int16(self):
-        return self._read_int_from_bytes(size=2)
+        return self.read_int_from_bytes(size=2)
     
     def read_uint24(self):
-        return self._read_uint_from_bytes(size=3)
+        return self.read_uint_from_bytes(size=3)
     
     def read_int24(self):
-        return self._read_int_from_bytes(size=3)
+        return self.read_int_from_bytes(size=3)
     
     def read_uint32(self):
-        return self._read_uint_from_bytes(size=4)
+        return self.read_uint_from_bytes(size=4)
 
     def read_int32(self):
-        return self._read_int_from_bytes(size=4)
+        return self.read_int_from_bytes(size=4)
 
     def _read_bits(self, size=1):
         if size > self.bits_length - self._position:
@@ -81,46 +128,8 @@ class BitsReader:
         self.seek_bits(self._position + size)
         return bits
 
-    def _read_bytes_bits(self, size=1):
+    def _read_bits_from_bytes(self, size=1):
         return self._read_bits(size * __BYTE_BIT_SIZE__)
-
-    def _read_uint_from_bits(self, size=1):
-        bits = self._read_bits(size)
-        return int.from_bytes(
-            bits_to_bytes(bits),
-            byteorder=self._byteorder,
-            signed=False,
-        )
-
-    def _read_int_from_bits(self, size=2):
-        if size <= 1:
-            return self._read_uint_from_bits(size)
-
-        bits = self._read_bits(size)
-        sign, *bits = bits
-        bits = bitarray(bits)
-
-        return int.from_bytes(
-            bits_to_bytes(bits, str(sign)),
-            byteorder=self._byteorder,
-            signed=True,
-        )
-
-    def _read_uint_from_bytes(self, size=1):
-        bits = self._read_bytes_bits(size)
-        return int.from_bytes(
-            bits_to_bytes(bits),
-            byteorder=self._byteorder,
-            signed=False,
-        )
-
-    def _read_int_from_bytes(self, size=1):
-        bits = self._read_bytes_bits(size)
-        return int.from_bytes(
-            bits_to_bytes(bits),
-            byteorder=self._byteorder,
-            signed=True,
-        )
 
 
 def bits_to_bytes(bits, bit='0'):
