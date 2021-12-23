@@ -63,11 +63,11 @@ class Rectangle:
 
     @classmethod
     def unpack(cls, stream):
-        nbits = stream.read_uint_from_bits(5)
-        x_min = stream.read_uint_from_bits(nbits)
-        x_max = stream.read_uint_from_bits(nbits)
-        y_min = stream.read_uint_from_bits(nbits)
-        y_max = stream.read_uint_from_bits(nbits)
+        nbits = stream.read_ubits(5)
+        x_min = stream.read_sbits(nbits)
+        x_max = stream.read_sbits(nbits)
+        y_min = stream.read_sbits(nbits)
+        y_max = stream.read_sbits(nbits)
 
         return cls(
             x_min=x_min,
