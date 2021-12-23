@@ -40,15 +40,6 @@ class File:
         )
 
 
-def tag(tag_code):
-    def modifier(cls):
-        cls.tag_code = tag_code
-
-        return cls
-
-    return modifier
-
-
 def parse(path):
     with open(path, 'rb') as file:
         data = file.read()
