@@ -142,8 +142,13 @@ class Matrix:
 @dataclass
 class Cxform:
     # [red, green, blue]
-    mult_terms: tuple[int, int, int]
+    has_add_terms: bool
     add_terms: tuple[int, int, int]
+
+    has_mult_terms: bool
+    mult_terms: tuple[int, int, int]
+
+    _nbits: int
 
     @classmethod
     def unpack(cls, stream):
@@ -168,8 +173,13 @@ class Cxform:
             )
 
         return cls(
+            has_mult_terms=has_mult_terms,
             mult_terms=mult_terms,
+
+            has_add_terms=has_add_terms,
             add_terms=add_terms,
+
+            _nbits=nbits,
         )
 
     def __mul__(self, color):
@@ -190,3 +200,55 @@ class Cxform:
             result[idx] = max(0, min(result[idx], 255))
 
         return RGB(*result)
+
+
+@dataclass
+class CxformWithAlpha(Cxform):
+    alpha_add_term: int
+    alpha_mult_term: int
+
+    @classmethod
+    def unpack(cls, stream):
+        csform = Cxform.unpack(stream)
+
+        alpha_mult_term = None
+        if csform.has_mult_terms:
+            alpha_mult_term = stream.read_sbits(csform._nbits)
+
+        alpha_add_term = None
+        if csform.has_add_terms:
+            alpha_add_term = stream.read_sbits(csform._nbits)
+
+        return cls(
+            alpha_mult_term=alpha_mult_term,
+            has_mult_terms=csform.has_mult_terms,
+            mult_terms=csform.mult_terms,
+
+            alpha_add_term=alpha_add_term,
+            has_add_terms=csform.has_add_terms,
+            add_terms=csform.add_terms,
+
+            _nbits=csform._nbits,
+        )
+
+    def __mul__(self, color):
+        rgb = super().__mul__(color)
+        alpha = color.alpha * self.alpha_mult_term / 256
+
+        return RGBA(
+            red=rgb.red,
+            green=rgb.green,
+            blue=rgb.blue,
+            alpha=alpha,
+        )
+
+    def __add__(self, color):
+        rgb = super().__add__(color)
+        alpha =  max(0, min(color.alpha + self.alpha_add_term, 255))
+
+        return RGBA(
+            red=rgb.red,
+            green=rgb.green,
+            blue=rgb.blue,
+            alpha=alpha,
+        )
