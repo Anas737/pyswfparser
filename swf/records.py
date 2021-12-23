@@ -96,21 +96,21 @@ class Matrix:
         scale_x = 0
         scale_y = 0
         if has_scale:
-            nbits = stream.read_uint_from_bits(5)
-            scale_x = stream.read_uint_from_bits(nbits)
-            scale_y = stream.read_uint_from_bits(nbits)
+            nbits = stream.read_ubits(5)
+            scale_x = stream.read_fbits(nbits)
+            scale_y = stream.read_fbits(nbits)
 
         has_rotate = stream.read_bit_bool()
         rotate_skew_0 = 0
         rotate_skew_1 = 0
         if has_rotate:
-            nbits = stream.read_uint_from_bits(5)
-            rotate_skew_0 = stream.read_uint_from_bits(nbits)
-            rotate_skew_1 = stream.read_uint_from_bits(nbits)
+            nbits = stream.read_ubits(5)
+            rotate_skew_0 = stream.read_fbits(nbits)
+            rotate_skew_1 = stream.read_fbits(nbits)
 
-        nbits = stream.read_uint_from_bits(5)
-        translate_x = stream.read_uint_from_bits(nbits)
-        translate_y = stream.read_uint_from_bits(nbits)
+        nbits = stream.read_ubits(5)
+        translate_x = stream.read_sbits(nbits)
+        translate_y = stream.read_sbits(nbits)
 
         return cls(
             has_scale=has_scale,
@@ -122,3 +122,71 @@ class Matrix:
             translate_x=translate_x,
             translate_y=translate_y,
         )
+
+    def to_3x2(self):
+        return [
+            [self.scale_x, self.rotate_skew_0],
+            [self.rotate_skew_1, self.scale_y],
+            [self.translate_x, self.translate_y],
+        ]
+
+    def __rmul__(self, coord):
+        x, y = coord
+
+        return (
+            x * self.scale_x + y * self.rotate_skew_1 + self.translate_x,
+            y * self.scale_y + x * self.rotate_skew_0 + self.translate_y,
+        )
+
+
+@dataclass
+class Cxform:
+    # [red, green, blue]
+    mult_terms: tuple[int, int, int]
+    add_terms: tuple[int, int, int]
+
+    @classmethod
+    def unpack(cls, stream):
+        has_add_terms = stream.read_bit_bool()
+        has_mult_terms = stream.read_bit_bool()
+        nbits = stream.read_ubits(4)
+
+        mult_terms = (None, None, None)
+        if has_mult_terms:
+            mult_terms = (
+                stream.read_sbits(nbits),
+                stream.read_sbits(nbits),
+                stream.read_sbits(nbits),
+            )
+
+        add_terms = (None, None, None)
+        if has_add_terms:
+            add_terms = (
+                stream.read_sbits(nbits),
+                stream.read_sbits(nbits),
+                stream.read_sbits(nbits),
+            )
+
+        return cls(
+            mult_terms=mult_terms,
+            add_terms=add_terms,
+        )
+
+    def __mul__(self, color):
+        rgb = (color.red, color.green, color.blue)
+
+        result = []
+        for idx in range(3):
+            result[idx] = rgb[idx] * self.mult_terms[idx] / 256
+
+        return RGB(*result)
+
+    def __add__(self, color):
+        rgb = (color.red, color.green, color.blue)
+
+        result = []
+        for idx in range(3):
+            result[idx] = rgb[idx] + self.add_terms[idx]
+            result[idx] = max(0, min(result[idx], 255))
+
+        return RGB(*result)
