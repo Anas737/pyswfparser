@@ -2,13 +2,15 @@ from dataclasses import dataclass
 from typing import List
 
 from swf.stream import Stream
-from swf.header import Header
 from swf.exceptions import UnmatchedFileLength
+from swf.header import Header
+from swf.tags import Tag
+
 
 @dataclass
 class File:
     header: Header
-    tags: List[object]
+    tags: List[Tag]
 
     @classmethod
     def unpack(cls, stream):
@@ -37,6 +39,14 @@ class File:
             tags=[],
         )
 
+
+def tag(tag_code):
+    def modifier(cls):
+        cls.tag_code = tag_code
+
+        return cls
+
+    return modifier
 
 
 def parse(path):
