@@ -1,0 +1,2 @@
+class UnmatchedFileLength(Exception):
+    pass

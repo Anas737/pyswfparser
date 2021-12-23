@@ -1,14 +1,9 @@
 from dataclasses import dataclass
 from typing import List
 
-
 from swf.stream import Stream
 from swf.header import Header
-
-
-class UnmatchedFileLength(Exception):
-    pass
-
+from swf.exceptions import UnmatchedFileLength
 
 @dataclass
 class File:
@@ -41,6 +36,7 @@ class File:
             header=header,
             tags=[],
         )
+
 
 
 def parse(path):
