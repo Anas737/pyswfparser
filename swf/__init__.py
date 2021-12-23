@@ -35,7 +35,7 @@ class File:
         stream = Stream(data)
         # we don't read all the header struct data in the first
         # unpack since the data might be compressed
-        header.unpack_rest(reader)
+        header.unpack_rest(stream)
 
         return cls(
             header=header,
