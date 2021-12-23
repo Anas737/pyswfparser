@@ -156,7 +156,7 @@ class Cxform:
         has_mult_terms = stream.read_bit_bool()
         nbits = stream.read_ubits(4)
 
-        mult_terms = (None, None, None)
+        mult_terms = (1, 1, 1)
         if has_mult_terms:
             mult_terms = (
                 stream.read_sbits(nbits),
@@ -164,7 +164,7 @@ class Cxform:
                 stream.read_sbits(nbits),
             )
 
-        add_terms = (None, None, None)
+        add_terms = (0, 0, 0)
         if has_add_terms:
             add_terms = (
                 stream.read_sbits(nbits),
@@ -211,11 +211,11 @@ class CxformWithAlpha(Cxform):
     def unpack(cls, stream):
         csform = Cxform.unpack(stream)
 
-        alpha_mult_term = None
+        alpha_mult_term = 1
         if csform.has_mult_terms:
             alpha_mult_term = stream.read_sbits(csform._nbits)
 
-        alpha_add_term = None
+        alpha_add_term = 0
         if csform.has_add_terms:
             alpha_add_term = stream.read_sbits(csform._nbits)
 
