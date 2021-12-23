@@ -252,3 +252,26 @@ class CxformWithAlpha(Cxform):
             blue=rgb.blue,
             alpha=alpha,
         )
+
+
+@dataclass
+class Header:
+    tag_type: int
+    length: int
+
+    @classmethod
+    def unpack(cls, stream):
+        tag_code_and_length = stream.read_uint16()
+
+        # 6: tag type is the first 10 bits
+        tag_type = tag_code_and_length >> 6
+        # 63: MASK 111111
+        length = tag_code_and_length & 63
+
+        if length == 0x3f:
+            length = stream.read_uint32()
+
+        return cls(
+            tag_type=tag_type,
+            length=length,
+        )
