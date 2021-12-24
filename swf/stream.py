@@ -32,19 +32,19 @@ class Stream:
 
     @property
     def buffer(self):
-        return self._buffer[self.position:]
+        return self._buffer[self._position:]
 
     @property
     def bytes_buffers(self):
         return self.buffer.tobytes()
 
     @property
-    def position(self):
+    def bit_position(self):
         return self._position
 
     @property
     def byte_position(self):
-        return math.ceil(self.position / 8)
+        return math.ceil(self._position / 8)
 
     @property
     def bits_length(self):
@@ -55,7 +55,7 @@ class Stream:
         return math.ceil(self.bits_length / 8)
 
     def tell_bits(self, size=1):
-        return self._buffer[self.position: min(self.bits_length, size)]
+        return self._buffer[self._position: min(self.bits_length, size)]
 
     def tell_bytes(self, size=1):
         return self.tell_bits(size * __BYTE_BITS_SIZE__)
@@ -65,6 +65,16 @@ class Stream:
 
     def seek_bytes(self, position):
         self.seek_bits(position * __BYTE_BITS_SIZE__)
+
+    def move_bits(self, steps):
+        self.seek_bits(self._position + steps)
+
+    def move_bytes(self, steps):
+        self.seek_bytes(self._position + steps)
+
+    def byte_align(self):
+        remaining_bits = self.byte_position * __BYTE_BITS_SIZE__ - self._position
+        self.seek_bits(self._position + remaining_bits)
 
     def read_bits(self, size=1, signed=False):
         bits = self._read_bits(size)
@@ -186,7 +196,7 @@ class Stream:
     def read_char(self):
         return self.read_uint8().decode()
 
-    def read_string(self):
+    def read_cstring(self):
         string = ''
         char = self.read_char()
         while char != '\0':
@@ -194,6 +204,11 @@ class Stream:
             char = self.read_char()   
 
         return string
+
+    def read_cstring(self, length=None):
+        if length is None:
+            length = self.read_uint16()
+        return ''.join([self.read_char() for _ in range(length)])
 
     def read_bool(self):
         return bool(self.read_uint8())
@@ -206,10 +221,9 @@ class Stream:
             raise BitsExhaustion()
 
         if byte_aligned:
-            remaining_bits = self.byte_position * __BYTE_BITS_SIZE__ - self._position
-            self.seek_bits(self._position + remaining_bits)
+            self.byte_align()
 
-        bits = self._buffer[self._position: self.position + size]
+        bits = self._buffer[self._position: self._position + size]
 
         self.seek_bits(self._position + size)
         return bits
