@@ -253,25 +253,77 @@ class CxformWithAlpha(Cxform):
             alpha=alpha,
         )
 
-
 @dataclass
-class Header:
-    tag_type: int
-    length: int
+class Event:
+    is_key_up: bool
+    is_key_down: bool
+    is_mouse_up: bool
+    is_mouse_down: bool
+    is_mouse_move: bool
+    is_unload: bool
+    is_enter_frame: bool
+    is_load: bool
+    is_drag_over: bool
+    is_roll_out: bool
+    is_roll_over: bool
+    is_release_outside: bool
+    is_release: bool
+    is_press: bool
+    is_initialize: bool
+    is_data: bool
+    # reserved: int
+    is_construct: bool
+    is_key_press: bool
+    is_drag_out: bool
+    # reserved: int
 
     @classmethod
-    def unpack(cls, stream):
-        tag_code_and_length = stream.read_uint16()
+    def unpack(cls, version, stream):
+        is_key_up = stream.read_bit_bool()
+        is_key_down = stream.read_bit_bool()
+        is_mouse_up = stream.read_bit_bool()
+        is_mouse_down = stream.read_bit_bool()
+        is_mouse_move = stream.read_bit_bool()
+        is_unload = stream.read_bit_bool()
+        is_enter_frame = stream.read_bit_bool()
+        is_load = stream.read_bit_bool()
+        is_drag_over = stream.read_bit_bool()
+        is_roll_out = stream.read_bit_bool()
+        is_roll_over = stream.read_bit_bool()
+        is_release_outside = stream.read_bit_bool()
+        is_release = stream.read_bit_bool()
+        is_press = stream.read_bit_bool()
+        is_initialize = stream.read_bit_bool()
+        is_data = stream.read_bit_bool()
 
-        # 6: tag type is the first 10 bits
-        tag_type = tag_code_and_length >> 6
-        # 63: MASK 111111
-        length = tag_code_and_length & 63
-
-        if length == 0x3f:
-            length = stream.read_uint32()
+        is_construct = False
+        is_key_press = False
+        is_drag_out = False
+        if version >= 6:
+            stream.read_ubits(5)  # reserved is always 0
+            is_construct = stream.read_bit_bool()
+            is_key_press = stream.read_bit_bool()
+            is_drag_out = stream.read_bit_bool()
+            stream.read_ubits(8)  # reserved is always 0
 
         return cls(
-            tag_type=tag_type,
-            length=length,
+            is_key_up=is_key_up,
+            is_key_down=is_key_down,
+            is_mouse_up=is_mouse_up,
+            is_mouse_down=is_mouse_down,
+            is_mouse_move=is_mouse_move,
+            is_unload=is_unload,
+            is_enter_frame=is_enter_frame,
+            is_load=is_load,
+            is_drag_over=is_drag_over,
+            is_roll_out=is_roll_out,
+            is_roll_over=is_roll_over,
+            is_release_outside=is_release_outside,
+            is_release=is_release,
+            is_press=is_press,
+            is_initialize=is_initialize,
+            is_data=is_data,
+            is_construct=is_construct,
+            is_key_press=is_key_press,
+            is_drag_out=is_drag_out,
         )
