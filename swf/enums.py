@@ -23,6 +23,14 @@ class ValueType(enum):
 
 
 class VarsMethod(enum):
-    NONE: 0
-    GET: 1
-    POST: 2
+    NONE = 0
+    GET = 1
+    POST = 2
+
+
+class BlendMode(enum):
+    NORMAL_0 = 0
+    NORMAL_1 = 1
+    LAYER = 2
+    MULTIPLY = 3
+    SCREEN = 4
