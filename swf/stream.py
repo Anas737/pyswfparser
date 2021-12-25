@@ -205,7 +205,7 @@ class Stream:
 
         return string
 
-    def read_cstring(self, length=None):
+    def read_string(self, length=None):
         if length is None:
             length = self.read_uint16()
         return ''.join([self.read_char() for _ in range(length)])
