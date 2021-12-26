@@ -32,11 +32,19 @@ class Stream:
 
     @property
     def buffer(self):
-        return self._buffer[self._position:]
+        return self._buffer
 
     @property
     def bytes_buffers(self):
         return self.buffer.tobytes()
+
+    @property
+    def available_bits(self):
+        return self.buffer[self._position:]
+
+    @property
+    def available_bytes(self):
+        return self.bytes_buffers[self.byte_position:]
 
     @property
     def bit_position(self):
@@ -227,7 +235,7 @@ class Stream:
         return bool(self.read_uint8())
 
     def read_bit_bool(self):
-        return bool(self._read_bits(1))
+        return bool(self.read_ubits(1))
 
     def _read_bits(self, size=1, byte_aligned=False):
         if size > self.bits_length - self._position:
