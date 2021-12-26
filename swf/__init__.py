@@ -1,23 +1,22 @@
 from dataclasses import dataclass
-from typing import List
 
 from swf.stream import Stream
 from swf.exceptions import UnmatchedFileLength
 from swf.header import Header
-from swf.tags import Tag
+from swf.tags import End, Tag, unpack as unpack_tag
 
 
 @dataclass
 class File:
     header: Header
-    tags: List[Tag]
+    tags: list[Tag]
 
     @classmethod
     def unpack(cls, stream):
         header = Header.unpack(stream)
 
         position = stream.byte_position
-        data = stream.bytes_buffers
+        data = stream.available_bytes
 
         if header.is_zlib_compressed:
             import zlib
@@ -34,9 +33,16 @@ class File:
         # unpack since the data might be compressed
         header.unpack_rest(stream)
 
+        tags = []
+        tag = unpack_tag(header.version, stream)
+        while not isinstance(tag, End):
+            # print(tag)
+            tags.append(tag)
+            tag = unpack_tag(header.version, stream)
+
         return cls(
             header=header,
-            tags=[],
+            tags=tags,
         )
 
 
