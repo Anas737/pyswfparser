@@ -357,3 +357,17 @@ class GradientBevel(Filter):
             on_top=on_top,
             passes=passes,
         )
+
+
+@dataclass
+class FilterList:
+    filters: list[Filter]
+
+    @classmethod
+    def unpack(cls, stream):
+        count = stream.read_uint8()
+        filters = [unpack(stream) for _ in range(count)]
+
+        return cls(
+            filters=filters,
+        )
