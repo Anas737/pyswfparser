@@ -54,11 +54,17 @@ class Stream:
     def bytes_length(self):
         return math.ceil(self.bits_length / 8)
 
-    def tell_bits(self, size=1):
-        return self._buffer[self._position: min(self.bits_length, size)]
+    def tell_bits(self, size=1, signed=False):
+        return int.from_bytes(
+            bits_to_bytes(
+                self.buffer[self._position, min(self.bits_length, size)]
+            ),
+            byteorder=self._bitorder,
+            signed=signed,
+        )
 
-    def tell_bytes(self, size=1):
-        return self.tell_bits(size * __BYTE_BITS_SIZE__)
+    def tell_bytes(self, size=1, signed=False):
+        return self.tell_bits(size * __BYTE_BITS_SIZE__, signed)
 
     def seek_bits(self, position):
         self._position = min(position, self.bits_length - 1)
@@ -70,7 +76,7 @@ class Stream:
         self.seek_bits(self._position + steps)
 
     def move_bytes(self, steps):
-        self.seek_bytes(self._position + steps)
+        self.seek_bytes(self.byte_position + steps)
 
     def byte_align(self):
         remaining_bits = self.byte_position * __BYTE_BITS_SIZE__ - self._position
@@ -78,8 +84,10 @@ class Stream:
 
     def read_bits(self, size=1, signed=False):
         bits = self._read_bits(size)
-        sign, *bits = bits
-        bits = bitarray(bits)
+        sign = 0
+        if signed:
+            sign, *bits = bits
+            bits = bitarray(bits)
 
         return int.from_bytes(
             bits_to_bytes(bits, str(sign)),
@@ -87,13 +95,18 @@ class Stream:
             signed=signed,
         )
 
-    def read_bytes(self, size=1, signed=False):
+    def read_bytes(self, size=1, signed=False, to_int=True):
         bits = self._read_byte_aligned_bits(size)
-        return int.from_bytes(
-            bits_to_bytes(bits),
-            byteorder=self._byteorder,
-            signed=signed,
-        )
+        bytes = bits_to_bytes(bits)
+
+        if to_int:
+            return int.from_bytes(
+                bytes,
+                byteorder=self._byteorder,
+                signed=signed,
+            )
+        else:
+            return bytes
 
     def read_ubits(self, size=1):
         return self.read_bits(size)
@@ -194,7 +207,7 @@ class Stream:
         return value
 
     def read_char(self):
-        return self.read_uint8().decode()
+        return self.read_bytes(to_int=False).decode()
 
     def read_cstring(self):
         string = ''
