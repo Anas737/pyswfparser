@@ -1,7 +1,7 @@
-from enums import enum
+from enum import Enum
 
 
-class LangagueCode(enum):
+class LangagueCode(Enum):
     LATIN = 1
     JAPANESE = 2
     KOREAN = 3
@@ -9,7 +9,7 @@ class LangagueCode(enum):
     TRADITIONAL_CHINESE = 5
 
 
-class ValueType(enum):
+class ValueType(Enum):
     STRING = 0
     FLOAT = 1
     NULL = 2
@@ -22,15 +22,38 @@ class ValueType(enum):
     CONSTANT_16 = 9
 
 
-class VarsMethod(enum):
+class VarsMethod(Enum):
     NONE = 0
     GET = 1
     POST = 2
 
 
-class BlendMode(enum):
+class BlendMode(Enum):
     NORMAL_0 = 0
     NORMAL_1 = 1
     LAYER = 2
     MULTIPLY = 3
     SCREEN = 4
+
+
+class FillStyleType(Enum):
+    SOLID = 0x00
+    LINEAR_GRADIENT = 0x10
+    RADIAL_GRADIENT = 0x12
+    FOCAL_RADIAL_GRADIENT = 0x13
+    REPEATING_BITMAP = 0x40
+    CLIPPED_BITMAP = 0x41
+    NON_SMOOTHED_REPEATING_BITMAP = 0x42
+    NON_SMOOTHED_CLIPPED_BITMAP = 0x43
+
+
+class CapStyleType(Enum):
+    ROUND = 0
+    NONE = 1
+    MITER = 2
+
+
+class JoinStyleType:
+    ROUND = 0
+    BEVEL = 1
+    MITER = 2
