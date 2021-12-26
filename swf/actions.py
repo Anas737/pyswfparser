@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from swf.enums import ValueType, VarsMethod
+from swf.records import Events
 
 
 __ACTIONS__ = {}
@@ -945,6 +946,60 @@ class Try(Action):
 @register_action(code=0x2a)
 class Throw(Action):
     pass
+
+
+@dataclass
+class ClipAction:
+    events: Events
+    key_code: int
+    actions: list[Action]
+
+    @classmethod
+    def unpack(cls, version, stream):
+        events = Events.unpack(version, stream)
+        size = stream.read_uint32()
+        key_code = None
+        if events.is_key_press:
+            key_code = stream.read_uint8()
+            size = size - 1
+
+        actions = []
+        position = stream.byte_position
+        while stream.byte_position < position + size:
+            actions.append(unpack(stream))
+
+        return cls(
+            events=events,
+            key_code=key_code,
+            actions=actions,
+        )
+
+
+@dataclass
+class ClipActions:
+    # reserved: int
+    events: Events
+    clip_actions: list[ClipAction]
+    clip_action_end: int
+
+    @classmethod
+    def unpack(cls, version, stream):
+        stream.read_uint16()  # reserved always 0
+        events = Events.unpack(version, stream)
+        clip_actions = [ClipAction.unpack(version, stream)
+                        for _ in range(len(events))]
+
+        clip_action_end = 0
+        if version <= 5:
+            clip_action_end = stream.read_uint16()
+        elif version >= 6:
+            clip_action_end = stream.read_uint32()
+
+        return cls(
+            events=events,
+            clip_actions=clip_actions,
+            clip_action_end=clip_action_end,
+        )
 
 
 #### SWF 9 Actions ####
