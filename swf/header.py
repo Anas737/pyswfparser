@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from swf.structs import Rectangle
+from swf.records import Rectangle
 
 
 __F__ = 0x46
