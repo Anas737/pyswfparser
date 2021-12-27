@@ -780,3 +780,38 @@ class DoABC(Tag):
             data=data,
         )
 
+
+@dataclass
+@register_tag(code=41)
+class ProductInfo(Tag):
+    id: int
+    edition: int
+    major_version: int
+    minor_version: int
+    build_low: int
+    build_high: int
+    compilation_date_low: int
+    compilation_date_high: int
+
+    @classmethod
+    def unpack(cls, header, stream):
+        id = stream.read_uint32()
+        edition = stream.read_uint32()
+        major_version = stream.read_uint8()
+        minor_version = stream.read_uint8()
+        build_low = stream.read_uint32()
+        build_high = stream.read_uint32()
+        compilation_date_low = stream.read_uint32()
+        compilation_date_high = stream.read_uint32()
+
+        return cls(
+            header=header,
+            id=id,
+            edition=edition,
+            major_version=major_version,
+            minor_version=minor_version,
+            build_low=build_low,
+            build_high=build_high,
+            compilation_date_low=compilation_date_low,
+            compilation_date_high=compilation_date_high,
+        )
