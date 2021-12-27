@@ -1,13 +1,23 @@
 from dataclasses import dataclass
+import inspect
+from swf.actions import ClipActions
+
 from swf.enums import BlendMode
+from swf.filters import FilterList
+from swf.records import RGB, RGBA, CxformWithAlpha, \
+                        Cxform, Matrix, MorphFillStyleArray, \
+                        MorphLineStyleArray, Rectangle, Shape, \
+                        ShapeWithStyle
 
-from swf.records import RGB, RGBA, ClipActions, CxformWithAlpha, FilterList, Header, Cxform, Matrix
+
+__TAGS__ = {}
 
 
-def tag(tag_type):
+def register_tag(code):
     def modifier(cls):
-        cls.__tag_type__ = tag_type
+        __TAGS__[code] = cls
 
+        cls.__code__ = code
         return cls
 
     return modifier
@@ -15,7 +25,7 @@ def tag(tag_type):
 
 @dataclass
 class Header:
-    tag_type: int
+    code: int
     length: int
 
     @classmethod
@@ -23,17 +33,35 @@ class Header:
         tag_code_and_length = stream.read_uint16()
 
         # 6: tag type is the first 10 bits
-        tag_type = tag_code_and_length >> 6
+        code = tag_code_and_length >> 6
         # 63: MASK 111111
-        length = tag_code_and_length & 63
+        length = tag_code_and_length & 0x003f
 
         if length == 0x3f:
             length = stream.read_uint32()
 
         return cls(
-            tag_type=tag_type,
+            code=code,
             length=length,
         )
+
+def unpack(version, stream):
+    header = Header.unpack(stream)
+    if header.code not in __TAGS__:
+        # unkown tag
+        print(f"Unkown tag {header.code}, length: {header.length}")
+        if header.length != 0:
+            stream.move_bytes(header.length)
+        return None
+
+    unpack_tag = __TAGS__[header.code].unpack
+    args, *_ = inspect.getargspec(unpack_tag)
+    if len(args) == 4:
+        tag = unpack_tag(header, version, stream)
+    else:
+        tag = unpack_tag(header, stream)
+
+    return tag
 
 
 @dataclass
@@ -42,10 +70,12 @@ class Tag:
 
     @classmethod
     def unpack(cls, header, stream):
-        pass
+        return cls(
+            header=header,
+        )
 
 @dataclass
-@tag(tag_type=4)
+@register_tag(code=4)
 class PlaceObject(Tag):
     character_id: int
     depth: int
@@ -69,7 +99,7 @@ class PlaceObject(Tag):
 
 
 @dataclass
-@tag(tag_type=26)
+@register_tag(code=26)
 class PlaceObject2(Tag):
     move: bool
     depth: int
@@ -136,7 +166,7 @@ class PlaceObject2(Tag):
 
 
 @dataclass
-@tag(tag_type=70)
+@register_tag(code=70)
 class PlaceObject3(Tag):
     move: bool
     opaque_background: bool
@@ -246,7 +276,7 @@ class PlaceObject3(Tag):
 
 
 @dataclass
-@tag(tag_type=5)
+@register_tag(code=5)
 class RemoveObject(Tag):
     character_id: int
     depth: int
@@ -264,7 +294,7 @@ class RemoveObject(Tag):
 
 
 @dataclass
-@tag(tag_type=28)
+@register_tag(code=28)
 class RemoveObject2(Tag):
     depth: int
 
@@ -279,13 +309,13 @@ class RemoveObject2(Tag):
 
 
 @dataclass
-@tag(tag_type=1)
+@register_tag(code=1)
 class ShowFrame(Tag):
     pass
 
 
 @dataclass
-@tag(tag_type=9)
+@register_tag(code=9)
 class SetBackgroundColor(Tag):
     background_color: RGB
 
@@ -300,55 +330,41 @@ class SetBackgroundColor(Tag):
 
 
 @dataclass
-@tag(tag_type=43)
+@register_tag(code=43)
 class FrameLabel(Tag):
     name: str
+    named_anchor: bool
 
     @classmethod
     def unpack(cls, header, stream):
         name = stream.read_cstring()
+        named_anchor = False
+        if header.length > len(name) + 1:
+            named_anchor_flag = stream.read_bool()
 
         return cls(
             header=header,
             name=name,
+            named_anchor=named_anchor,
         )
 
 
 @dataclass
-@tag(tag_type=43)
-class FrameLabel(Tag):
-    name: str
-
-    @classmethod
-    def unpack(cls, header, stream):
-        name = stream.read_cstring()
-        named_anchor_flag = 0
-        if header.length > len(name):
-            named_anchor_flag = stream.read_uint8()
-
-        return cls(
-            header=header,
-            name=name,
-            named_anchor_flag=named_anchor_flag,
-        )
-
-
-@dataclass
-@tag(tag_type=24)
+@register_tag(code=24)
 class Protect(Tag):
     pass
 
 
 @dataclass
-@tag(tag_type=0)
+@register_tag(code=0)
 class End(Tag):
     pass
 
 
 @dataclass
-@tag(tag_type=56)
+@register_tag(code=56)
 class ExportAssets(Tag):
-    tags: list(tuple[int, str])
+    tags: list[tuple[int, str]]
 
     @classmethod
     def unpack(cls, header, stream):
@@ -363,10 +379,10 @@ class ExportAssets(Tag):
 
 
 @dataclass
-@tag(tag_type=57)
+@register_tag(code=57)
 class ImportAssets(Tag):
     url: str
-    tags: list(tuple[int, str])
+    tags: list[tuple[int, str]]
 
     @classmethod
     def unpack(cls, header, stream):
@@ -383,7 +399,7 @@ class ImportAssets(Tag):
 
 
 @dataclass
-@tag(tag_type=58)
+@register_tag(code=58)
 class EnableDebuger(Tag):
     password: str
 
@@ -398,7 +414,7 @@ class EnableDebuger(Tag):
 
 
 @dataclass
-@tag(tag_type=64)
+@register_tag(code=64)
 class EnableDebuger2(Tag):
     #reserved: int
     password: str
@@ -411,5 +427,356 @@ class EnableDebuger2(Tag):
         return cls(
             header=header,
             password=password,
+        )
+
+
+@dataclass
+@register_tag(code=65)
+class ScriptLimits(Tag):
+    max_recursion_depth: int
+    script_timeout_seconds: int
+
+    @classmethod
+    def unpack(cls, header, stream):
+        max_recursion_depth = stream.read_uint16()
+        script_timeout_seconds = stream.read_uint16()
+
+        return cls(
+            header=header,
+            max_recursion_depth=max_recursion_depth,
+            script_timeout_seconds=script_timeout_seconds,
+        )
+
+
+@dataclass
+@register_tag(code=66)
+class SetTabIndex(Tag):
+    depth: int
+    tab_index: int
+
+    @classmethod
+    def unpack(cls, header, stream):
+        depth = stream.read_uint16()
+        tab_index = stream.read_uint16()
+
+        return cls(
+            header=header,
+            depth=depth,
+            tab_index=tab_index,
+        )
+
+
+@dataclass
+@register_tag(code=69)
+class FileAttributes(Tag):
+    #reserved: int
+    use_direct_blit: bool
+    use_gpu: bool
+    has_metadata: bool
+    actionscript3: bool
+    #reserved: int
+    use_network: bool
+    #reserved: int
+
+    @classmethod
+    def unpack(cls, header, stream):
+
+        stream.read_ubits(1)  # reserved always 0
+        use_direct_blit = stream.read_bit_bool()
+        use_gpu = stream.read_bit_bool()
+        has_metadata = stream.read_bit_bool()
+        actionscript3 = stream.read_bit_bool()
+        stream.read_ubits(2)  # reserved always 0
+        use_network = stream.read_bit_bool()
+        stream.read_ubits(24)  # reserved always 0
+
+        return cls(
+            header=header,
+            use_direct_blit=use_direct_blit,
+            use_gpu=use_gpu,
+            has_metadata=has_metadata,
+            actionscript3=actionscript3,
+            use_network=use_network,
+        )
+
+
+@dataclass
+@register_tag(code=71)
+class ImportAssets2(Tag):
+    url: str
+    #reserved: int
+    #reserved: int
+    tags: list[tuple[int, str]]
+
+    @classmethod
+    def unpack(cls, header, stream):
+        url = stream.read_cstring()
+        stream.read_uint8()  # reserved must be 1
+        stream.read_uint8()  # reserved must be 0
+        count = stream.read_uint16()
+        tags = [(stream.read_uint16(), stream.read_cstring())
+                for _ in range(count)]
+
+        return cls(
+            header=header,
+            url=url,
+            tags=tags,
+        )
+
+
+@dataclass
+@register_tag(code=76)
+class SymbolClass(Tag):
+    tags: list[tuple[int, str]]
+
+    @classmethod
+    def unpack(cls, header, stream):
+        count = stream.read_uint16()
+        tags = [(stream.read_uint16(), stream.read_cstring())
+                for _ in range(count)]
+
+        return cls(
+            header=header,
+            tags=tags,
+        )
+
+
+@dataclass
+@register_tag(code=77)
+class Metadata(Tag):
+    metadata: str
+
+    @classmethod
+    def unpack(cls, header, stream):
+        metadata = stream.read_cstring()
+
+        return cls(
+            header=header,
+            metadata=metadata,
+        )
+
+
+@dataclass
+@register_tag(code=78)
+class Metadata(Tag):
+    character_id: int
+    splitter: Rectangle
+
+    @classmethod
+    def unpack(cls, header, stream):
+        character_id = stream.read_uint16()
+        splitter = Rectangle.unpack(stream)
+
+        return cls(
+            header=header,
+            character_id=character_id,
+            splitter=splitter,
+        )
+
+
+@dataclass
+@register_tag(code=2)
+class DefineShape(Tag):
+    shape_id: int
+    shape_bounds: Rectangle
+    shapes: ShapeWithStyle
+
+    @classmethod
+    def unpack(cls, header, stream):
+        shape_id = stream.read_uint16()
+        shape_bounds = Rectangle.unpack(stream)
+        shapes = ShapeWithStyle.unpack(shape_version=1, stream=stream)
+
+        return cls(
+            header=header,
+            shape_id=shape_id,
+            shape_bounds=shape_bounds,
+            shapes=shapes,
+        )
+
+
+@dataclass
+@register_tag(code=22)
+class DefineShape2(Tag):
+    shape_id: int
+    shape_bounds: Rectangle
+    shapes: ShapeWithStyle
+
+    @classmethod
+    def unpack(cls, header, stream):
+        shape_id = stream.read_uint16()
+        shape_bounds = Rectangle.unpack(stream)
+        shapes = ShapeWithStyle.unpack(shape_version=2, stream=stream)
+
+        return cls(
+            header=header,
+            shape_id=shape_id,
+            shape_bounds=shape_bounds,
+            shapes=shapes,
+        )
+
+
+@dataclass
+@register_tag(code=32)
+class DefineShape3(Tag):
+    shape_id: int
+    shape_bounds: Rectangle
+    shapes: ShapeWithStyle
+
+    @classmethod
+    def unpack(cls, header, stream):
+        shape_id = stream.read_uint16()
+        shape_bounds = Rectangle.unpack(stream)
+        shapes = ShapeWithStyle.unpack(shape_version=3, stream=stream)
+
+        return cls(
+            header=header,
+            shape_id=shape_id,
+            shape_bounds=shape_bounds,
+            shapes=shapes,
+        )
+
+
+@dataclass
+@register_tag(code=83)
+class DefineShape4(Tag):
+    shape_id: int
+    shape_bounds: Rectangle
+    edge_bounds: Rectangle
+    #reserved: int
+    uses_fill_winding_rule: bool
+    uses_non_scaling_strokes: bool
+    uses_scaling_strokes: bool
+    shapes: ShapeWithStyle
+
+    @classmethod
+    def unpack(cls, header, stream):
+        shape_id = stream.read_uint16()
+        shape_bounds = Rectangle.unpack(stream)
+        stream.read_ubits(5)  # reserved
+        uses_fill_winding_rule = stream.read_bit_bool()
+        uses_non_scaling_strokes = stream.read_bit_bool()
+        uses_scaling_strokes = stream.read_bit_bool()
+        shapes = ShapeWithStyle.unpack(shape_version=4, stream=stream)
+
+        return cls(
+            header=header,
+            shape_id=shape_id,
+            shape_bounds=shape_bounds,
+            uses_fill_winding_rule=uses_fill_winding_rule,
+            uses_non_scaling_strokes=uses_non_scaling_strokes,
+            uses_scaling_strokes=uses_scaling_strokes,
+            shapes=shapes,
+        )
+
+@dataclass
+@register_tag(code=46)
+class DefineMorphShape(Tag):
+    character_id: int
+    start_bounds: Rectangle
+    end_bounds: Rectangle
+    offset: int
+    morph_fill_styles: MorphFillStyleArray
+    morph_line_styles: MorphLineStyleArray
+    start_edges: Shape
+    end_edge: ShapeWithStyle
+
+    @classmethod
+    def unpack(cls, header, stream):
+        character_id = stream.read_uint16()
+        start_bounds = Rectangle.unpack(stream)
+        end_bounds = Rectangle.unpack(stream)
+        offset = stream.read_uint32()
+        morph_fill_styles = MorphFillStyleArray.unpack(stream)
+        # XXX: shape version = 1 ???
+        morph_line_styles = MorphLineStyleArray.unpack(shape_version=1, stream=stream)
+        start_edges = Shape.unpack(shape_version=1, stream=stream)
+        end_edge = ShapeWithStyle.unpack(shape_version=1, stream=stream)
+
+        return cls(
+            header=header,
+            character_id=character_id,
+            start_bounds=start_bounds,
+            end_bounds=end_bounds,
+            offset=offset,
+            morph_fill_styles=morph_fill_styles,
+            morph_line_styles=morph_line_styles,
+            start_edges=start_edges,
+            end_edge=end_edge,
+        )
+
+
+@dataclass
+@register_tag(code=39)
+class DefineSprite(Tag):
+    sprite_id: int
+    frame_count: int
+    control_tags: list[Tag]
+
+    @classmethod
+    def unpack(cls, header, version, stream):
+        sprite_id = stream.read_uint16()
+        frame_count = stream.read_uint16()
+
+        control_tags = []
+        tag = unpack(version, stream)
+        while not isinstance(tag, End):
+            control_tags.append(tag)
+            tag = unpack(version, stream)
+
+        return cls(
+            header=header,
+            sprite_id=sprite_id,
+            frame_count=frame_count,
+            control_tags=control_tags,
+        )
+
+
+@dataclass
+@register_tag(code=87)
+class DefineBinaryData(Tag):
+    tag: int
+    #reserved: int
+    data: bytes
+
+    @classmethod
+    def unpack(cls, header, stream):
+        position = stream.byte_position
+
+        tag = stream.read_uint16()
+        stream.read_uint32()  # reserved
+
+        bytes_read = stream.byte_position - position
+        data = stream.read_bytes(header.length - bytes_read, to_int=False)
+
+        return cls(
+            header=header,
+            tag=tag,
+            data=data,
+        )
+
+
+@dataclass
+@register_tag(code=82)
+class DoABC(Tag):
+    flags: int
+    name: str
+    data: bytes
+
+    @classmethod
+    def unpack(cls, header, stream):
+        position = stream.byte_position
+
+        flags = stream.read_uint32()
+        name = stream.read_cstring()
+
+        bytes_read = stream.byte_position - position
+        data = stream.read_bytes(header.length - bytes_read, to_int=False)
+
+        return cls(
+            header=header,
+            flags=flags,
+            name=name,
+            data=data,
         )
 
