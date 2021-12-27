@@ -65,7 +65,9 @@ class Stream:
     def tell_bits(self, size=1, signed=False):
         return int.from_bytes(
             bits_to_bytes(
-                self.buffer[self._position, min(self.bits_length, size)]
+                self.buffer[
+                    self._position: \
+                    self._position + min(self.bits_length, size)]
             ),
             byteorder=self._bitorder,
             signed=signed,
