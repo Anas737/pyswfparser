@@ -1,7 +1,10 @@
-from swf import parse
+from swf.file import parse
+from swf.tags import DoABC
 
 
 swf = parse('./RawDataMessage_0.swf')
 
 
-print(swf)
+for tag in swf.tags:
+    if isinstance(tag, DoABC):
+        print(tag.name)
