@@ -36,16 +36,6 @@ class Header:
         )
 
 
-@dataclass
-class Action:
-    header: Header
-
-    @classmethod
-    def unpack(cls, header, _stream):
-        return cls(
-            header=header,
-        )
-
 
 def unpack(stream):
     header = Header.unpack(stream)
@@ -59,6 +49,16 @@ def unpack(stream):
     cls = __ACTIONS__[header.code]
     return cls.unpack(header, stream)
 
+
+@dataclass
+class Action:
+    header: Header
+
+    @classmethod
+    def unpack(cls, header, _stream):
+        return cls(
+            header=header,
+        )
 
 #### SWF 3 Actions ####
 @dataclass
@@ -188,10 +188,6 @@ class Push(Action):
     @classmethod
     def unpack(cls, header, stream):
         values = []
-
-        # XXX: to make sure we get the right position
-        # maybe we read some bits before ?
-        stream.byte_align()
         position = stream.byte_position
         while stream.byte_position < position + header.length:
             type = ValueType(stream.read_uint8())
