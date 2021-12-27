@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Union
 
+from swf import byte_align_unpack
 from swf.enums import CapStyleType, FillStyleType, JoinStyleType
 
 
@@ -65,6 +66,7 @@ class Rectangle:
     y_max: int
 
     @classmethod
+    @byte_align_unpack
     def unpack(cls, stream):
         nbits = stream.read_ubits(5)
         x_min = stream.read_sbits(nbits)
@@ -94,6 +96,7 @@ class Matrix:
     translate_y: int
 
     @classmethod
+    @byte_align_unpack
     def unpack(cls, stream):
         has_scale = stream.read_bit_bool()
         scale_x = 0
@@ -154,6 +157,7 @@ class Cxform:
     _nbits: int
 
     @classmethod
+    @byte_align_unpack
     def unpack(cls, stream):
         has_add_terms = stream.read_bit_bool()
         has_mult_terms = stream.read_bit_bool()
@@ -211,6 +215,7 @@ class CxformWithAlpha(Cxform):
     alpha_mult_term: int
 
     @classmethod
+    @byte_align_unpack
     def unpack(cls, stream):
         csform = Cxform.unpack(stream)
 
@@ -486,7 +491,7 @@ class ShapeRecord:
     pass
 
 
-def unpack_shape(stream):
+def unpack_shape(fill_bits, line_bits, shape_version, stream):
     is_edge_record = stream.read_bit_bool()
     if is_edge_record:
         is_straight = stream.read_bit_bool()
@@ -499,7 +504,7 @@ def unpack_shape(stream):
     if flags == 0:
         return EndShape.unpack(stream)
 
-    return StyleChange.unpack(stream)
+    return StyleChange.unpack(fill_bits, line_bits, shape_version, stream)
 
 @dataclass
 class StyleChange(ShapeRecord):
@@ -513,7 +518,7 @@ class StyleChange(ShapeRecord):
     line_styles: int
 
     @classmethod
-    def unpack(cls, stream):
+    def unpack(cls, fill_bits, line_bits, shape_version, stream):
         state_new_styles = stream.read_bit_bool()
         state_line_style = stream.read_bit_bool()
         state_fill_style_1 = stream.read_bit_bool()
@@ -527,27 +532,28 @@ class StyleChange(ShapeRecord):
             move_delta_x = stream.read_sbits(move_bits)
             move_delta_y = stream.read_sbits(move_bits)
 
+        fill_style_0 = None
+        if state_fill_style_0:
+            fill_style_0 = stream.read_ubits(fill_bits)
+
+        fill_style_1 = None
+        if state_fill_style_1:
+            fill_style_1 = stream.read_ubits(fill_bits)
+
+        line_style = None
+        if state_line_style:
+            line_style = stream.read_ubits(line_bits)
+
         fill_styles = None
         line_styles = None
         fill_bits = 0
         line_bits = 0
+
         if state_new_styles:
-            fill_styles = LineStyleArray.unpack(stream)
-            line_styles = LineStyleArray.unpack(stream)
+            fill_styles = FillStyleArray.unpack(shape_version, stream)
+            line_styles = LineStyleArray.unpack(shape_version, stream)
             fill_bits = stream.read_ubits(4)
             line_bits = stream.read_ubits(4)
-
-        fill_style_0 = None
-        if state_fill_style_0 and fill_bits:
-            fill_style_0 = stream.read_ubits(fill_bits)
-
-        fill_style_1 = None
-        if state_fill_style_1 and fill_bits:
-            fill_style_1 = stream.read_ubits(fill_bits)
-
-        line_style = None
-        if state_line_style and line_bits:
-            line_style = stream.read_ubits(line_bits)
 
         return cls(
             is_edge_record=False,
@@ -577,13 +583,13 @@ class StraightEdge(ShapeRecord):
         delta_x = 0
         delta_y = 0
         vert_line_flag = False
-        if general_line_flag:
-            delta_x = stream.read_sbits(bits + 2)
-            delta_y = stream.read_sbits(bits + 2)
+        if not general_line_flag:
             vert_line_flag = stream.read_bit_bool()
-            if vert_line_flag:
-                delta_x = stream.read_sbits(bits + 2)
-                delta_y = stream.read_sbits(bits + 2)
+
+        if general_line_flag or not vert_line_flag:
+            delta_x = stream.read_sbits(bits + 2)
+        if general_line_flag or vert_line_flag:
+            delta_y = stream.read_sbits(bits + 2)
 
         return cls(
             is_edge_record=True,
@@ -617,7 +623,7 @@ class CurvedEdge(ShapeRecord):
             is_straight=False,
             control_delta_x=control_delta_x,
             control_delta_y=control_delta_y,
-            anchor_delta_x=anchor_delta_y,
+            anchor_delta_x=anchor_delta_x,
             anchor_delta_y=anchor_delta_y,
         )
 
@@ -643,14 +649,14 @@ class Shape:
     shape_records: list[ShapeRecord]
 
     @classmethod
-    def unpack(cls, stream):
+    def unpack(cls, shape_version, stream):
         fill_bits = stream.read_ubits(4)
         line_bits = stream.read_ubits(4)
         shape_records = []
-        shape = unpack_shape(stream)
+        shape = unpack_shape(fill_bits, line_bits, shape_version, stream)
         while not isinstance(shape, EndShape):
             shape_records.append(shape)
-            shape = unpack_shape(stream)
+            shape = unpack_shape(fill_bits, line_bits, shape_version, stream)
 
         return cls(
             fill_bits=fill_bits,
@@ -685,7 +691,7 @@ class ShapeWithStyle(Shape):
     def unpack(cls, shape_version, stream):
         fill_styles = FillStyleArray.unpack(shape_version, stream)
         line_styles = LineStyleArray.unpack(shape_version, stream)
-        shape = Shape.unpack(stream)
+        shape = Shape.unpack(shape_version, stream)
 
         return cls(
             fill_bits=shape.fill_bits,
