@@ -1,4 +1,4 @@
 *.pyc
 *.pdf
 *.swf
-__pycache__/
+**/__pycache__
