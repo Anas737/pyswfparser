@@ -27,6 +27,22 @@ class Namespace:
         )
 
 
+class NSSet:
+    namespace_idx: list[int]
+
+    @classmethod
+    def unpack(cls, stream):
+        count = stream.read_var_uint30()
+        idx = [stream.read_var_uint30() for _ in range(count)]
+
+        return cls(
+            namespace_idx=idx,
+        )
+
+
+
+
+
 @dataclass
 class CPool:
     sinteger: list[int]
