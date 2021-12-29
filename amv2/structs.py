@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from amv2.enums import NamespaceKind
+from amv2.enums import MultinameKind, NamespaceKind
 
 
 class String(str):
@@ -12,6 +12,7 @@ class String(str):
         return cls(value)
 
 
+@dataclass
 class Namespace:
     kind: NamespaceKind
     string_idx: int
@@ -27,6 +28,7 @@ class Namespace:
         )
 
 
+@dataclass
 class NSSet:
     namespace_idx: list[int]
 
@@ -40,50 +42,139 @@ class NSSet:
         )
 
 
+class Multiname:
+    __multinames__ = []
 
+    @classmethod
+    def multinames(cls):
+        if not cls.__multinames__:
+            cls.__multinames__ = {
+                multiname.__kind__: multiname
+                for multiname in cls.__subclasses__()
+            }
+
+        return cls.__multinames__
+
+    @classmethod
+    def unpack(cls, stream):
+        kind = MultinameKind(stream.read_uint8())
+        return cls.multinames()[kind].unpack(stream)
+
+
+@dataclass
+class QName(Multiname):
+    __kind__ = MultinameKind.q_name
+
+    namespace_idx: int
+    string_idx: int
+
+    @classmethod
+    def unpack(cls, stream):
+        namespace_idx = stream.read_var_uint30()
+        string_idx = stream.read_var_uint30()
+
+        return cls(
+            namespace_idx=namespace_idx,
+            string_idx=string_idx,
+        )
+
+
+@dataclass
+class RTQName(Multiname):
+    __kind__ = MultinameKind.rt_q_name
+
+    string_idx: int
+
+    @classmethod
+    def unpack(cls, stream):
+        string_idx = stream.read_var_uint30()
+
+        return cls(
+            string_idx=string_idx,
+        )
+
+
+@dataclass
+class RTQNameL(Multiname):
+    __kind__ = MultinameKind.rt_q_name_l
+    @classmethod
+    def unpack(cls, _stream):
+        pass
+
+@dataclass
+class Multiname_(Multiname):
+    __kind__ = MultinameKind.multiname
+
+    string_idx: int
+    ns_set_idx: int
+
+    @classmethod
+    def unpack(cls, stream):
+        string_idx = stream.read_var_uint30()
+        ns_set_idx = stream.read_var_uint30()
+
+        return cls(
+            string_idx=string_idx,
+            ns_set_idx=ns_set_idx,
+        )
+
+
+@dataclass
+class MultinameL(Multiname):
+    __kind__ = MultinameKind.multiname_l
+
+    ns_set_idx: int
+
+    @classmethod
+    def unpack(cls, stream):
+        ns_set_idx = stream.read_var_uint30()
+
+        return cls(
+            ns_set_idx=ns_set_idx,
+        )
 
 
 @dataclass
 class CPool:
-    sinteger: list[int]
-    uinteger: list[int]
-    double: list[float]
-    string: list[String]
-    namespace: list[Namespace]
-    ns_set: list[NSSet]
-    multiname: list[Multiname]
+    sintegers: list[int]
+    uintegers: list[int]
+    doubles: list[float]
+    strings: list[String]
+    namespaces: list[Namespace]
+    ns_sets: list[NSSet]
+    multinames: list[Multiname]
 
     @classmethod
     def unpack(cls, stream):
-        count = stream.read_var_uint30()
-        sinteger = [stream.read_var_sint32() for _ in range(count)]
+        count = stream.read_var_uint30() - 1
+        sintegers = [stream.read_var_sint32() for _ in range(count)]
 
-        count = stream.read_var_uint30()
-        uinteger = [stream.read_var_uint32() for _ in range(count)]
+        count = stream.read_var_uint30() - 1
+        uintegers = [stream.read_var_uint32() for _ in range(count)]
 
-        count = stream.read_var_uint30()
-        double = [stream.read_double() for _ in range(count)]
+        count = stream.read_var_uint30() - 1
+        doubles = [stream.read_double() for _ in range(count)]
+    
+        count = stream.read_var_uint30() - 1
+        strings = [String.unpack(stream) for _ in range(count)]
 
-        count = stream.read_var_uint30()
-        string = [String.unpack(stream) for _ in range(count)]
+        count = stream.read_var_uint30() - 1
+        namespaces = [Namespace.unpack(stream) for _ in range(count)]
 
-        count = stream.read_var_uint30()
-        namespace = [Namespace.unpack(stream) for _ in range(count)]
+        count = stream.read_var_uint30() - 1
+        ns_sets = [NSSet.unpack(stream) for _ in range(count)]
 
-        count = stream.read_var_uint30()
-        ns_set = [NSSet.unpack(stream) for _ in range(count)]
-
-        count = stream.read_var_uint30()
-        multiname = [Multiname.unpack(stream) for _ in range(count)]
+        count = stream.read_var_uint30() - 1
+        multinames = [Multiname.unpack(stream) for _ in range(count)]
 
         return cls(
-            sinteger=sinteger,
-            uinteger=uinteger,
-            double=double,
-            string=string,
-            namespace=namespace,
-            ns_set=ns_set,
-            multiname=multiname,
+            sintegers=sintegers,
+            uintegers=uintegers,
+            doubles=doubles,
+            strings=strings,
+            namespaces=namespaces,
+            ns_sets=ns_sets,
+            multinames=multinames,
         )
 
 
@@ -91,47 +182,47 @@ class CPool:
 class File:
     minor_version: int
     major_version: int
-    constant_pool: CPool
-    method: list[Method]
-    method_body: list[MethodBody]
-    instance: list[Instance]
-    cls: list[Class]
+    constants_pool: CPool
+    methods: list[Method]
+    method_bodies: list[MethodBody]
+    instances: list[Instance]
+    classes: list[Class]
     metadata: list[Metadata]
-    script: list[Script]
+    scripts: list[Script]
 
     @classmethod
     def unpack(cls, stream):
         minor_version = stream.read_uint16()
         major_version = stream.read_uint16()
 
-        constant_pool = CPool.unpack(stream)
+        constants_pool = CPool.unpack(stream)
 
         count = stream.read_var_uint30()
-        method = [Method.unpack(stream) for _ in range(count)]
+        methods = [Method.unpack(stream) for _ in range(count)]
 
         count = stream.read_var_uint30()
         metadata = [Metadata.unpack(stream) for _ in range(count)]
 
         count = stream.read_var_uint30()
-        instance = [Class.unpack(stream) for _ in range(count)]
-        _cls = [Class.unpack(stream) for _ in range(count)]
+        instances = [Class.unpack(stream) for _ in range(count)]
+        classes = [Class.unpack(stream) for _ in range(count)]
 
         count = stream.read_var_uint30()
-        script = [Script.unpack(stream) for _ in range(count)]
+        scripts = [Script.unpack(stream) for _ in range(count)]
 
         count = stream.read_var_uint30()
-        method_body = [MethodBody.unpack(stream) for _ in range(count)]
+        method_bodies = [MethodBody.unpack(stream) for _ in range(count)]
 
         return cls(
             minor_version=minor_version,
             major_version=major_version,
-            constant_pool=constant_pool,
-            method=method,
-            method_body=method_body,
-            instance=instance,
-            cls=_cls,
+            constants_pool=constants_pool,
+            methods=methods,
+            method_bodies=method_bodies,
+            instances=instances,
+            classes=classes,
             metadata=metadata,
-            script=script,
+            scripts=scripts,
         )
 
 
