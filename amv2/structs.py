@@ -1,5 +1,15 @@
 from dataclasses import dataclass
 
+
+class String(str):
+    @classmethod
+    def unpack(cls, stream):
+        size = stream.read_var_uint30()
+        value = ''.join([stream.read_char() for _ in range(size)])
+
+        return cls(value)
+
+
 @dataclass
 class CPool:
     sinteger: list[int]
