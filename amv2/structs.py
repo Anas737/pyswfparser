@@ -1,22 +1,59 @@
 from dataclasses import dataclass
 
+@dataclass
+class CPool:
+    sinteger: list[int]
+    uinteger: list[int]
+    double: list[float]
+    string: list[String]
+    namespace: list[Namespace]
+    ns_set: list[NSSet]
+    multiname: list[Multiname]
+
+    @classmethod
+    def unpack(cls, stream):
+        count = stream.read_var_uint30()
+        sinteger = [stream.read_var_sint32() for _ in range(count)]
+
+        count = stream.read_var_uint30()
+        uinteger = [stream.read_var_uint32() for _ in range(count)]
+
+        count = stream.read_var_uint30()
+        double = [stream.read_double() for _ in range(count)]
+
+        count = stream.read_var_uint30()
+        string = [String.unpack(stream) for _ in range(count)]
+
+        count = stream.read_var_uint30()
+        namespace = [Namespace.unpack(stream) for _ in range(count)]
+
+        count = stream.read_var_uint30()
+        ns_set = [NSSet.unpack(stream) for _ in range(count)]
+
+        count = stream.read_var_uint30()
+        multiname = [Multiname.unpack(stream) for _ in range(count)]
+
+        return cls(
+            sinteger=sinteger,
+            uinteger=uinteger,
+            double=double,
+            string=string,
+            namespace=namespace,
+            ns_set=ns_set,
+            multiname=multiname,
+        )
 
 
 @dataclass
 class File:
     minor_version: int
     major_version: int
-
     constant_pool: CPool
-
     method: list[Method]
     method_body: list[MethodBody]
-
     instance: list[Instance]
     cls: list[Class]
-
     metadata: list[Metadata]
-
     script: list[Script]
 
     @classmethod
