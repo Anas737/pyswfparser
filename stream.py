@@ -39,7 +39,7 @@ class Stream:
         return self._buffer
 
     @property
-    def bytes_buffers(self):
+    def bytes_buffer(self):
         return self.buffer.tobytes()
 
     @property
@@ -48,7 +48,7 @@ class Stream:
 
     @property
     def available_bytes(self):
-        return self.bytes_buffers[self.byte_position:]
+        return self.bytes_buffer[self.byte_position:]
 
     @property
     def bit_position(self):
@@ -210,10 +210,10 @@ class Stream:
         return value
 
     def read_var_uint30(self):
-        return self._read_var_bytes(bit_size=30, signed=True)
+        return self._read_var_bytes(bit_size=30)
 
     def read_var_uint32(self):
-        return self._read_var_bytes(bit_size=32, signed=False)
+        return self._read_var_bytes(bit_size=32)
 
     def read_var_sint32(self):
         return self._read_var_bytes(bit_size=32, signed=True)
@@ -245,7 +245,7 @@ class Stream:
         b = self._read_bits(size=__BYTE_BITS_SIZE__)
         bits = b[1:]
         while b[0]:
-            b = self._read_bits(size=__BYTE_BITS_SIZE__)
+            b = self._read_bits(size=__BYTE_BITS_SIZE__, byte_aligned=True)
             bits = bits + b[1:]
 
         if len(bits) > bit_size:
