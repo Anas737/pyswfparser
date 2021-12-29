@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from amv2.enums import NamespaceKind
+
 
 class String(str):
     @classmethod
@@ -8,6 +10,21 @@ class String(str):
         value = ''.join([stream.read_char() for _ in range(size)])
 
         return cls(value)
+
+
+class Namespace:
+    kind: NamespaceKind
+    string_idx: int
+
+    @classmethod
+    def unpack(cls, stream):
+        kind = NamespaceKind(stream.read_uint8())
+        idx = stream.read_var_uint30()
+
+        return cls(
+            kind=kind,
+            string_idx=idx,
+        )
 
 
 @dataclass
