@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from swf.stream import Stream
+from stream import Stream
 from swf.exceptions import UnmatchedFileLength
 from swf.tags import End, Tag, unpack as unpack_tag
 from swf.records import Rectangle

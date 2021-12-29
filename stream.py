@@ -19,6 +19,10 @@ class BitsExhaustion(Exception):
     pass
 
 
+class SizeExceeded(Exception):
+    pass
+
+
 class Stream:
     def __init__(self, data=None, bitorder='big', byteorder='little'):
         self._buffer = bitarray()
@@ -115,8 +119,8 @@ class Stream:
                 byteorder=self._byteorder,
                 signed=signed,
             )
-        else:
-            return bytes
+
+        return bytes
 
     def read_ubits(self, size=1):
         return self.read_bits(size)
@@ -205,16 +209,14 @@ class Stream:
         )
         return value
 
-    def read_encoded_uint32(self):
-        shift = __BYTE_BITS_SIZE__ -1
-        b = self.read_uint8()
+    def read_var_uint30(self):
+        return self._read_var_bytes(bit_size=30, signed=True)
 
-        value = b & __MASK_01111111__
-        while b >> shift:
-            b = self.read_uint8()
-            value = (value << shift) | (b & __MASK_01111111__)
+    def read_var_uint32(self):
+        return self._read_var_bytes(bit_size=32, signed=False)
 
-        return value
+    def read_var_sint32(self):
+        return self._read_var_bytes(bit_size=32, signed=True)
 
     def read_char(self):
         return self.read_bytes(to_int=False).decode()
@@ -238,6 +240,25 @@ class Stream:
 
     def read_bit_bool(self):
         return bool(self.read_ubits(1))
+
+    def _read_var_bytes(self, bit_size=1, signed=False):
+        b = self._read_bits(size=__BYTE_BITS_SIZE__)
+        bits = b[1:]
+        while b[0]:
+            b = self._read_bits(size=__BYTE_BITS_SIZE__)
+            bits = bits + b[1:]
+
+        if len(bits) > bit_size:
+            raise SizeExceeded()
+
+        return int.from_bytes(
+                bits_to_bytes(
+                    bits,
+                    '0' if not signed else str(bits[-1]),
+                ),
+                byteorder=self._byteorder,
+                signed=signed,
+            )
 
     def _read_bits(self, size=1, byte_aligned=False):
         if size > self.bits_length - self._position:
