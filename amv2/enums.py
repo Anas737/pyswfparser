@@ -2,23 +2,73 @@ from enum import Enum
 
 
 class NamespaceKind(Enum):
-    ns = 0x08
-    package_ns = 0x16
-    package_internal_ns = 0x17
-    protected_ns = 0x18
-    explicit_ns = 0x19
-    static_protected_ns = 0x1a
-    private_ns = 0x05
+    NS = 0x08
+    PACKAGE_NS = 0x16
+    PACKAGE_INTERNAL_NS = 0x17
+    PROTECTED_NS = 0x18
+    EXPLICIT_NS = 0x19
+    STATIC_PROTECTED_NS = 0x1a
+    PRIVATE_NS = 0x05
 
 
 class MultinameKind(Enum):
-    q_name = 0x07
-    q_name_a = 0x0d
-    rt_q_name = 0x0f
-    rt_q_name_a = 0x10
-    rt_q_name_l = 0x11
-    rt_q_name_l_a = 0x11
-    multiname = 0x09
-    multiname_a = 0x0e
-    multiname_l = 0x1b
-    multiname_l_a = 0x1c
+    Q_NAME = 0x07
+    Q_NAME_A = 0x0d
+    RT_Q_NAME = 0x0f
+    RT_Q_NAME_A = 0x10
+    RT_Q_NAME_L = 0x11
+    RT_Q_NAME_L_A = 0x11
+    MULTINAME = 0x09
+    MULTINAME_A = 0x0e
+    MULTINAME_L = 0x1b
+    MULTINAME_L_A = 0x1c
+
+
+class MethodFlag(Enum):
+    NEED_ARGUMENTS = 0x01
+    NEED_ACTIVATION = 0x02
+    NEED_REST = 0x04
+    HAS_OPTIONAL = 0x08
+    SET_DXNS = 0x40
+    HAS_PARAM_NAMES = 0x80
+
+
+class ConstantKind(Enum):
+    SINT = 0x03
+    UINT = 0x04
+    DOUBLE = 0x06
+    UTF8 = 0x01
+    TRUE = 0x0b
+    FALSE = 0x0a
+    NULL = 0x0c
+    UNDEFINED = 0x00
+    NS = 0x08
+    PACKAGE_NS = 0x16
+    PACKAGE_INTERNAL_NS = 0x17
+    PROTECTED_NS = 0x18
+    EXPLICIT_NS = 0x19
+    STATIC_PROTECTED_NS = 0x1a
+    PRIVATE_NS = 0x05
+
+
+class ClassFlag(Enum):
+    SEALED = 0x01
+    FINAL = 0x02
+    INTERFACE = 0x04
+    PROTECTED_NS = 0x08
+
+
+class TraitType(Enum):
+    SLOT = 0
+    METHOD = 1
+    GETTER = 2
+    SETTER = 3
+    CLASS = 4
+    FUNCTION = 5
+    CONST = 6
+
+
+class TraitAttribut(Enum):
+    FINAL = 1
+    OVERRIDE = 2
+    METADATA = 4
