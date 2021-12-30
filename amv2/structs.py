@@ -43,28 +43,26 @@ class NSSet:
 
 
 class Multiname:
-    __multinames__ = []
-
-    @staticmethod
-    def multinames():
-        if not Multiname.__multinames__:
-            Multiname.__multinames__ = {
-                multiname.__kind__: multiname
-                for multiname in Multiname.__subclasses__()
-            }
-
-        return Multiname.__multinames__
-
+    __multinames__ = {}
+    i = 0
     @staticmethod
     def unpack(stream):
         kind = MultinameKind(stream.read_uint8())
-        return Multiname.multinames()[kind].unpack(stream)
+        return Multiname.__multinames__[kind].unpack(stream)
+
+    @staticmethod
+    def register(kind):
+        def decorator(cls):
+            Multiname.__multinames__[kind] = cls
+
+            cls.__kind__ = kind
+            return cls
+        return decorator
 
 
 @dataclass
-class QName(Multiname):
-    __kind__ = MultinameKind.Q_NAME
-
+@Multiname.register(MultinameKind.Q_NAME)
+class QName:
     namespace_idx: int
     name_idx: int
 
@@ -79,10 +77,14 @@ class QName(Multiname):
         )
 
 
-@dataclass
-class RTQName(Multiname):
-    __kind__ = MultinameKind.RT_Q_NAME
+@Multiname.register(MultinameKind.Q_NAME_A)
+class QNameA(QName):
+    pass
 
+
+@dataclass
+@Multiname.register(MultinameKind.RT_Q_NAME)
+class RTQName:
     name_idx: int
 
     @classmethod
@@ -94,18 +96,26 @@ class RTQName(Multiname):
         )
 
 
-@dataclass
-class RTQNameL(Multiname):
-    __kind__ = MultinameKind.RT_Q_NAME_L
+@Multiname.register(MultinameKind.RT_Q_NAME_A)
+class RTQNameA(RTQName):
+    pass
 
+
+@Multiname.register(MultinameKind.RT_Q_NAME_L)
+class RTQNameL:
     @classmethod
     def unpack(cls, _stream):
         pass
 
-@dataclass
-class Multiname_(Multiname):
-    __kind__ = MultinameKind.MULTINAME
 
+@Multiname.register(MultinameKind.RT_Q_NAME_L_A)
+class RTQNameLA(RTQNameL):
+    pass
+
+
+@dataclass
+@Multiname.register(MultinameKind.MULTINAME)
+class Multiname_:
     name_idx: int
     namespace_idx: int
 
@@ -120,10 +130,14 @@ class Multiname_(Multiname):
         )
 
 
-@dataclass
-class MultinameL(Multiname):
-    __kind__ = MultinameKind.MULTINAME_L
+@Multiname.register(MultinameKind.MULTINAME_A)
+class MultinameA(Multiname_):
+    pass
 
+
+@dataclass
+@Multiname.register(MultinameKind.MULTINAME_L)
+class MultinameL:
     namespace_idx: int
 
     @classmethod
@@ -132,6 +146,31 @@ class MultinameL(Multiname):
 
         return cls(
             namespace_idx=namespace_idx,
+        )
+
+
+@Multiname.register(MultinameKind.MULTINAME_L_A)
+class MultinameLA(MultinameL):
+    pass
+
+
+# https://blog.richardszalay.com/2009/02/10/generics-vector-in-the-avm2/
+@dataclass
+@Multiname.register(MultinameKind.GENERIC_NAME)
+class GenericName:
+    name_idx: int
+    params: list[int]
+
+    @classmethod
+    def unpack(cls, stream):
+        name_idx = stream.read_var_uint30()
+
+        count = stream.read_var_uint30()
+        params = [stream.read_var_uint30() for _ in range(count)]
+
+        return cls(
+            name_idx=name_idx,
+            params=params,
         )
 
 
@@ -280,15 +319,6 @@ class Trait:
     metadata: list[int]
     attributes: list[TraitAttribut]
 
-    @staticmethod
-    def traits():
-        if not Trait.__traits__:
-            for trait in Trait.__subclasses__():
-                kinds = trait.__kind__ if isinstance(trait.__kind__, list) else [trait.__kind__]
-                for kind in kinds:
-                    Trait.__traits__[kind] = trait
-
-        return Trait.__traits__
 
     @staticmethod
     def unpack(stream):
@@ -298,7 +328,7 @@ class Trait:
         type = TraitType(kind & 0b1111)
         bits_attributes = kind >> 4
 
-        instance = Trait.traits()[type].unpack(stream)
+        instance = Trait.__traits__[type].unpack(stream)
         instance.name_idx = idx
 
         for attribut in TraitAttribut:
@@ -312,14 +342,23 @@ class Trait:
 
         return instance
 
+    def register(kind):
+        def decorator(cls):
+            kinds = kind if isinstance(kind, list) else [kind]
+            for _kind in kinds:
+                Trait.__traits__[_kind] = cls
+
+            cls.__kind__ = kind
+            return cls
+        return decorator
+
 
 @dataclass
+@Trait.register([
+    TraitType.SLOT,
+    TraitType.CONST,
+])
 class SlotTrait(Trait):
-    __kind__ = [
-        TraitType.SLOT,
-        TraitType.CONST,
-    ]
-
     slot_id: int
     type_name_idx: int
     v_idx: int
@@ -344,9 +383,8 @@ class SlotTrait(Trait):
 
 
 @dataclass
+@Trait.register(TraitType.CLASS)
 class ClassTrait(Trait):
-    __kind__ = TraitType.CLASS
-
     slot_id: int
     class_idx: int
 
@@ -365,9 +403,8 @@ class ClassTrait(Trait):
 
 
 @dataclass
+@Trait.register(TraitType.FUNCTION)
 class FunctionTrait(Trait):
-    __kind__ = TraitType.FUNCTION
-
     slot_id: int
     function_idx: int
 
@@ -386,13 +423,12 @@ class FunctionTrait(Trait):
 
 
 @dataclass
+@Trait.register([
+    TraitType.METHOD,
+    TraitType.GETTER,
+    TraitType.SETTER,
+])
 class MethodTrait(Trait):
-    __kind__ = [
-        TraitType.METHOD,
-        TraitType.GETTER,
-        TraitType.SETTER,
-    ]
-
     disp_id: int
     method_idx: int
 
