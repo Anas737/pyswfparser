@@ -17,11 +17,12 @@ class MultinameKind(Enum):
     RT_Q_NAME = 0x0f
     RT_Q_NAME_A = 0x10
     RT_Q_NAME_L = 0x11
-    RT_Q_NAME_L_A = 0x11
+    RT_Q_NAME_L_A = 0x12
     MULTINAME = 0x09
     MULTINAME_A = 0x0e
     MULTINAME_L = 0x1b
     MULTINAME_L_A = 0x1c
+    GENERIC_NAME = 0x1d
 
 
 class MethodFlag(Enum):
