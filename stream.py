@@ -5,6 +5,8 @@ from bitarray import bitarray
 
 
 __BYTE_BITS_SIZE__ = 8
+__CHUNK_BIT_SIZE__ = 7
+
 __MAX_UINT8__ = 256
 __MAX_UINT16__ = 65536
 __MASK_01111111__ = 127
@@ -242,23 +244,27 @@ class Stream:
         return bool(self.read_ubits(1))
 
     def _read_var_bytes(self, bit_size=1, signed=False):
-        b = self._read_bits(size=__BYTE_BITS_SIZE__)
-        bits = b[1:]
-        while b[0]:
-            b = self._read_bits(size=__BYTE_BITS_SIZE__, byte_aligned=True)
-            bits = bits + b[1:]
+        offset = __CHUNK_BIT_SIZE__
+        byte = self.read_uint8()
+        value = byte & __MASK_01111111__
+        while byte >> __CHUNK_BIT_SIZE__:
+            if offset >= bit_size:
+                raise SizeExceeded()
 
-        if len(bits) > bit_size:
-            raise SizeExceeded()
+            byte = self.read_uint8()
+            chunk = byte & __MASK_01111111__
+            value = value | (chunk << offset)
 
-        return int.from_bytes(
-                bits_to_bytes(
-                    bits,
-                    '0' if not signed else str(bits[-1]),
-                ),
-                byteorder=self._byteorder,
-                signed=signed,
-            )
+            offset = offset + __CHUNK_BIT_SIZE__
+
+        mask = (1 << bit_size) - 1
+        value = value & mask
+
+        if signed:
+            mask = 1 << (bit_size - 1)
+            value = -(value & mask) + (value & ~mask)
+
+        return value
 
     def _read_bits(self, size=1, byte_aligned=False):
         if size > self.bits_length - self._position:
