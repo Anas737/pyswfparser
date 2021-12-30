@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from amv2.enums import MultinameKind, NamespaceKind
+from amv2.enums import ClassFlag, ConstantKind, MethodFlag, MultinameKind, NamespaceKind, TraitAttribut, TraitType
 
 
 class String(str):
@@ -15,7 +15,7 @@ class String(str):
 @dataclass
 class Namespace:
     kind: NamespaceKind
-    string_idx: int
+    name_idx: int
 
     @classmethod
     def unpack(cls, stream):
@@ -24,7 +24,7 @@ class Namespace:
 
         return cls(
             kind=kind,
-            string_idx=idx,
+            name_idx=idx,
         )
 
 
@@ -45,92 +45,93 @@ class NSSet:
 class Multiname:
     __multinames__ = []
 
-    @classmethod
-    def multinames(cls):
-        if not cls.__multinames__:
-            cls.__multinames__ = {
+    @staticmethod
+    def multinames():
+        if not Multiname.__multinames__:
+            Multiname.__multinames__ = {
                 multiname.__kind__: multiname
-                for multiname in cls.__subclasses__()
+                for multiname in Multiname.__subclasses__()
             }
 
-        return cls.__multinames__
+        return Multiname.__multinames__
 
-    @classmethod
-    def unpack(cls, stream):
+    @staticmethod
+    def unpack(stream):
         kind = MultinameKind(stream.read_uint8())
-        return cls.multinames()[kind].unpack(stream)
+        return Multiname.multinames()[kind].unpack(stream)
 
 
 @dataclass
 class QName(Multiname):
-    __kind__ = MultinameKind.q_name
+    __kind__ = MultinameKind.Q_NAME
 
     namespace_idx: int
-    string_idx: int
+    name_idx: int
 
     @classmethod
     def unpack(cls, stream):
         namespace_idx = stream.read_var_uint30()
-        string_idx = stream.read_var_uint30()
+        name_idx = stream.read_var_uint30()
 
         return cls(
             namespace_idx=namespace_idx,
-            string_idx=string_idx,
+            name_idx=name_idx,
         )
 
 
 @dataclass
 class RTQName(Multiname):
-    __kind__ = MultinameKind.rt_q_name
+    __kind__ = MultinameKind.RT_Q_NAME
 
-    string_idx: int
+    name_idx: int
 
     @classmethod
     def unpack(cls, stream):
-        string_idx = stream.read_var_uint30()
+        name_idx = stream.read_var_uint30()
 
         return cls(
-            string_idx=string_idx,
+            name_idx=name_idx,
         )
 
 
 @dataclass
 class RTQNameL(Multiname):
-    __kind__ = MultinameKind.rt_q_name_l
+    __kind__ = MultinameKind.RT_Q_NAME_L
+
     @classmethod
     def unpack(cls, _stream):
         pass
 
 @dataclass
 class Multiname_(Multiname):
-    __kind__ = MultinameKind.multiname
+    __kind__ = MultinameKind.MULTINAME
 
-    string_idx: int
-    ns_set_idx: int
+    name_idx: int
+    namespace_idx: int
 
     @classmethod
     def unpack(cls, stream):
-        string_idx = stream.read_var_uint30()
-        ns_set_idx = stream.read_var_uint30()
+        name_idx = stream.read_var_uint30()
+        namespace_idx = stream.read_var_uint30()
 
         return cls(
-            string_idx=string_idx,
-            ns_set_idx=ns_set_idx,
+            name_idx=name_idx,
+            namespace_idx=namespace_idx,
         )
 
 
 @dataclass
 class MultinameL(Multiname):
-    __kind__ = MultinameKind.multiname_l
+    __kind__ = MultinameKind.MULTINAME_L
 
-    ns_set_idx: int
+    namespace_idx: int
 
     @classmethod
     def unpack(cls, stream):
-        ns_set_idx = stream.read_var_uint30()
+        namespace_idx = stream.read_var_uint30()
 
         return cls(
-            ns_set_idx=ns_set_idx,
+            namespace_idx=namespace_idx,
         )
 
 
@@ -179,6 +180,383 @@ class CPool:
 
 
 @dataclass
+class Option:
+    value_idx: int
+    kind: ConstantKind
+
+    @classmethod
+    def unpack(cls, stream):
+        value_idx = stream.read_var_uint30()
+        kind = ConstantKind(stream.read_uint8())
+
+        return cls(
+            value_idx=value_idx,
+            kind=kind,
+        )
+
+
+@dataclass
+class Method:
+    name_idx: int
+    param_names: list[int]
+    param_types: list[int]
+    options: list[Option]
+    flags: list[MethodFlag]
+    return_type: int
+
+    @classmethod
+    def unpack(cls, stream):
+        param_count = stream.read_var_uint30()
+        # TODO: add enum for types
+        return_type = stream.read_var_uint30()
+        param_types = [stream.read_var_uint30() for _ in range(param_count)]
+        name_idx = stream.read_var_uint30()
+        bits_flags = stream.read_uint8()
+
+        flags = []
+        for flag in MethodFlag:
+            if flag.value & bits_flags != flag.value:
+                continue
+            flags.append(flag)
+
+        options = []
+        if MethodFlag.HAS_OPTIONAL in flags:
+            option_count = stream.read_var_uint30()
+            options = [Option.unpack(stream) for _ in range(option_count)]
+
+        param_names = []
+        if MethodFlag.HAS_PARAM_NAMES in flags:
+            param_names = [stream.read_var_uint30() for _ in range(param_count)]
+    
+        return cls(
+            name_idx=name_idx,
+            param_names=param_names,
+            param_types=param_types,
+            options=options,
+            flags=flags,
+            return_type=return_type,
+        )
+
+
+@dataclass
+class Item:
+    key: int
+    value: int
+
+    @classmethod
+    def unpack(cls, stream):
+        key = stream.read_var_uint30()
+        value = stream.read_var_uint30()
+
+        return cls(
+            key=key,
+            value=value,
+        )
+
+
+@dataclass
+class Metadata:
+    name_idx: int
+    items: list[Item]
+
+    @classmethod
+    def unpack(cls, stream):
+        idx = stream.read_var_uint30()
+
+        count = stream.read_var_uint30()
+        items = [Item.unpack(stream) for _ in range(count)]
+
+        return cls(
+            name_idx=idx,
+            items=items,
+        )
+
+
+@dataclass
+class Trait:
+    __traits__ = {}
+
+    name_idx: int
+    metadata: list[int]
+    attributes: list[TraitAttribut]
+
+    @staticmethod
+    def traits():
+        if not Trait.__traits__:
+            for trait in Trait.__subclasses__():
+                kinds = trait.__kind__ if isinstance(trait.__kind__, list) else [trait.__kind__]
+                for kind in kinds:
+                    Trait.__traits__[kind] = trait
+
+        return Trait.__traits__
+
+    @staticmethod
+    def unpack(stream):
+        idx = stream.read_var_uint30()
+
+        kind = stream.read_uint8()
+        type = TraitType(kind & 0b1111)
+        bits_attributes = kind >> 4
+
+        instance = Trait.traits()[type].unpack(stream)
+        instance.name_idx = idx
+
+        for attribut in TraitAttribut:
+            if attribut.value & bits_attributes != attribut.value:
+                continue
+            instance.attributes.append(attribut)
+        
+        if TraitAttribut.METADATA in instance.attributes:
+            count = stream.read_var_uint30()
+            instance.metadata = [stream.read_var_uint30() for _ in range(count)]
+
+        return instance
+
+
+@dataclass
+class SlotTrait(Trait):
+    __kind__ = [
+        TraitType.SLOT,
+        TraitType.CONST,
+    ]
+
+    slot_id: int
+    type_name_idx: int
+    v_idx: int
+    v_kind: ConstantKind
+
+    @classmethod
+    def unpack(cls, stream):
+        id = stream.read_var_uint30()
+        type_name_idx = stream.read_var_uint30()
+        v_idx = stream.read_var_uint30()
+        v_kind = ConstantKind(stream.read_uint8()) if v_idx != 0 else None
+
+        return cls(
+            name_idx=None,
+            metadata=[],
+            attributes=[],
+            slot_id=id,
+            type_name_idx=type_name_idx,
+            v_idx=v_idx,
+            v_kind=v_kind,
+        )
+
+
+@dataclass
+class ClassTrait(Trait):
+    __kind__ = TraitType.CLASS
+
+    slot_id: int
+    class_idx: int
+
+    @classmethod
+    def unpack(cls, stream):
+        id = stream.read_var_uint30()
+        idx = stream.read_var_uint30()
+
+        return cls(
+            name_idx=None,
+            metadata=[],
+            attributes=[],
+            slot_id=id,
+            class_idx=idx,
+        )
+
+
+@dataclass
+class FunctionTrait(Trait):
+    __kind__ = TraitType.FUNCTION
+
+    slot_id: int
+    function_idx: int
+
+    @classmethod
+    def unpack(cls, stream):
+        id = stream.read_var_uint30()
+        idx = stream.read_var_uint30()
+
+        return cls(
+            name_id=None,
+            metadata=[],
+            attributes=[],
+            slot_id=id,
+            function_idx=idx,
+        )
+
+
+@dataclass
+class MethodTrait(Trait):
+    __kind__ = [
+        TraitType.METHOD,
+        TraitType.GETTER,
+        TraitType.SETTER,
+    ]
+
+    disp_id: int
+    method_idx: int
+
+    @classmethod
+    def unpack(cls, stream):
+        id = stream.read_var_uint30()
+        idx = stream.read_var_uint30()
+
+        return cls(
+            name_idx=None,
+            metadata=[],
+            attributes=[],
+            disp_id=id,
+            method_idx=idx,
+        )
+
+
+@dataclass
+class Instance:
+    name_idx: int
+    super_name_idx: int
+    flags: list[ClassFlag]
+    protected_ns: int
+    interfaces: list[int]
+    init_method_idx: int
+    traits: list[Trait]
+
+    @classmethod
+    def unpack(cls, stream):
+        name_idx = stream.read_var_uint30()
+        super_name_idx = stream.read_var_uint30()
+
+        bits_flags = stream.read_uint8()
+        flags = []
+        for flag in ClassFlag:
+            if flag.value & bits_flags != flag.value:
+                continue
+            flags.append(flag)
+
+        protected_ns = None
+        if ClassFlag.PROTECTED_NS in flags:
+            protected_ns = stream.read_var_uint30()
+
+        count = stream.read_var_uint30()
+        interfaces = [stream.read_var_uint30() for _ in range(count)]
+
+        init_method_idx = stream.read_var_uint30()
+
+        count = stream.read_var_uint30()
+        traits = [Trait.unpack(stream) for _ in range(count)]
+
+        return cls(
+            name_idx=name_idx,
+            super_name_idx=super_name_idx,
+            flags=flags,
+            protected_ns=protected_ns,
+            interfaces=interfaces,
+            init_method_idx=init_method_idx,
+            traits=traits,
+        )
+
+
+@dataclass
+class Class:
+    init_method_idx: int
+    traits: list[Trait]
+
+    @classmethod
+    def unpack(cls, stream):
+        init_method_idx = stream.read_var_uint30()
+
+        count = stream.read_var_uint30()
+        traits = [Trait.unpack(stream) for _ in range(count)]
+
+        return cls(
+            init_method_idx=init_method_idx,
+            traits=traits,
+        )
+
+
+@dataclass
+class Script:
+    init_method_idx: int
+    traits: list[Trait]
+
+    @classmethod
+    def unpack(cls, stream):
+        init_method_idx = stream.read_var_uint30()
+
+        count = stream.read_var_uint30()
+        traits = [Trait.unpack(stream) for _ in range(count)]
+
+        return cls(
+            init_method_idx=init_method_idx,
+            traits=traits,
+        )
+
+
+@dataclass
+class AESException:
+    from_idx: int
+    to_idx: int
+    target_idx: int
+    exc_type_idx: int
+    var_name_idx: int
+
+    @classmethod
+    def unpack(cls, stream):
+        from_idx = stream.read_var_uint30()
+        to_idx = stream.read_var_uint30()
+        target_idx = stream.read_var_uint30()
+        exc_type_idx = stream.read_var_uint30()
+        var_name_idx = stream.read_var_uint30()
+
+        return cls(
+            from_idx=from_idx,
+            to_idx=to_idx,
+            target_idx=target_idx,
+            exc_type_idx=exc_type_idx,
+            var_name_idx=var_name_idx,
+        )
+
+
+@dataclass
+class MethodBody:
+    method_idx: int
+    max_stack: int
+    local_count: int
+    init_scope_depth: int
+    max_scope_depth: int
+    code: bytes
+    exceptions: list[AESException]
+    traits: list[Trait]
+
+    @classmethod
+    def unpack(cls, stream):
+        method_idx = stream.read_var_uint30()
+        max_stack = stream.read_var_uint30()
+        local_count = stream.read_var_uint30()
+        init_scope_depth = stream.read_var_uint30()
+        max_scope_depth = stream.read_var_uint30()
+
+        count = stream.read_var_uint30()
+        code = stream.read_bytes(count, to_int=False)
+
+        count = stream.read_var_uint30()
+        exceptions = [AESException.unpack(stream) for _ in range(count)]
+
+        count = stream.read_var_uint30()
+        traits = [Trait.unpack(stream) for _ in range(count)]
+
+        return cls(
+            method_idx=method_idx,
+            max_stack=max_stack,
+            local_count=local_count,
+            init_scope_depth=init_scope_depth,
+            max_scope_depth=max_scope_depth,
+            code=code,
+            exceptions=exceptions,
+            traits=traits,
+        )
+
+
+@dataclass
 class File:
     minor_version: int
     major_version: int
@@ -204,7 +582,7 @@ class File:
         metadata = [Metadata.unpack(stream) for _ in range(count)]
 
         count = stream.read_var_uint30()
-        instances = [Class.unpack(stream) for _ in range(count)]
+        instances = [Instance.unpack(stream) for _ in range(count)]
         classes = [Class.unpack(stream) for _ in range(count)]
 
         count = stream.read_var_uint30()
